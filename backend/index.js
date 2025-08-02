@@ -102,6 +102,42 @@ function allActiveCalled(roomId) {
     .every(p => (game.bets[p.id]|| 0) === game.currentBet);
 }
 
+function getCardValue(card) {
+  const value = card.slice(1);
+  const values = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
+  return values[value] || parseInt(value);
+};
+
+function getCardSuit(card) {
+  return card[0];
+};
+
+function getCombs(cards, r) {
+  const combinations = [];
+
+  function backtrack(start, currentComb) {
+    if (currentComb.length == r) {
+      combinations.push([...currentComb]); 
+      return;
+    };
+
+    for (let i = start; i < cards.length; i++) {
+      currentComb.push(cards[i]);
+      backtrack(i+1, currentComb);
+      currentComb.pop();
+
+    };
+  };
+  backtrack(0, []);
+  return combinations
+};
+
+function evaluateHand(playerCards, communityCards) {
+  
+}
+
+
+
 function nextPhase(roomId) {
   const game = games[roomId]
 
@@ -179,42 +215,23 @@ io.on("connection", (socket) => {
         }
       }
     }
-    socket.on("join_lobby", (roomId) => {
-      if (!lobbyStatus[roomId]) lobbyStatus[roomId] = new Set();
-      lobbyStatus[roomId].add(socket.id);
-  
-      // Check if all players are in the lobby
-      const allInLobby = rooms[roomId] && rooms[roomId].every(p => lobbyStatus[roomId].has(p.id));
-      if (allInLobby) {
-        startGame(roomId);
-        io.to(roomId).emit("game_started", games[roomId]);
-        // Optionally, clear the lobbyStatus for this room
-        delete lobbyStatus[roomId];
-      }
-    });
+  });
 
-    socket.on("next_phase", (roomId) => {
+  socket.on("join_lobby", (roomId) => {
+    if (!lobbyStatus[roomId]) lobbyStatus[roomId] = new Set();
+    lobbyStatus[roomId].add(socket.id);
 
-      const game = games[roomId];
-      if (!game) {
-        return
-      };
+    // Check if all players are in the lobby
+    const allInLobby = rooms[roomId] && rooms[roomId].every(p => lobbyStatus[roomId].has(p.id));
+    if (allInLobby) {
+      startGame(roomId);
+      io.to(roomId).emit("game_started", games[roomId]);
+      // Optionally, clear the lobbyStatus for this room
+      delete lobbyStatus[roomId];
+    }
+  });
 
-      if (game.phase == 'pre-flop') {
-        game.phase = 'flop';
-        game.revealed = 3;
-      } else if (game.phase == 'flop') {
-        game.phase = 'turn';
-        game.revealed = 4;
-      } else if (game.phase == 'turn') {
-        game.phase = 'river';
-        game.revealed = 5;
-      } else if (game.phase == 'river') {
-        game.phase = 'showdown'
-      }
-      io.to(roomId).emit("game_state", game);
 
-    })
   socket.on("player_action", (roomId, action) => {
     const game = games[roomId];
     const players = rooms[roomId];
@@ -272,8 +289,7 @@ io.on("connection", (socket) => {
 
   socket.on("get_room_state", (roomId) => {
     socket.emit("room_update", rooms[roomId]);
-  })
-});
+  });
 
 
   socket.on("disconnect", () => {
