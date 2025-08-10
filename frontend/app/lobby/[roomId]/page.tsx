@@ -25,6 +25,7 @@ export default function LobbyPage() {
     const [game, setGame] = useState<GameState | null>(null);
     const [username, setUsername] = useState<string | null>(null);
     const [players, setPlayers] = useState<{ id: string; name: string; ready?: boolean, chips: number}[]>([]);
+    const [winners, setWinners] = useState<{id: string; name: string; bestScore: number}[] | null>(null);
 
     // Emit join_lobby when entering the lobby
     useEffect(() => {
@@ -91,6 +92,19 @@ export default function LobbyPage() {
         };
     }, [socket] )
 
+
+    useEffect(() => {
+        if (!socket) return;
+        socket.on("game_winners", (winners) => {
+            console.log("Game winners: ", winners)
+            setWinners(winners);
+        });
+
+        return () => {
+            socket.off("game_winners")
+        };
+    }, [socket]);
+
     console.log("username:", username, "game.currentPlayer:", game?.currentPlayer);
     console.log("players: ", players)
 
@@ -133,6 +147,45 @@ export default function LobbyPage() {
                     <p>
                         <strong>Current player:</strong> {game.currentPlayer}
                     </p>
+
+                    {winners && (
+                        <div style={{ 
+                            backgroundColor: '#90EE90', 
+                            padding: '20px', 
+                            margin: '20px 0', 
+                            borderRadius: '10px',
+                            textAlign: 'center'
+                        }}>
+                            <h2>🎉 Game Over! 🎉</h2>
+                            {winners.length === 1 ? (
+                            <h3>Winner: {winners[0].name}!</h3>
+                            ) : (
+                            <h3>Tie between: {winners.map(w => w.name).join(', ')}!</h3>
+                            )}
+                            <p>Winning score: {winners[0].bestScore}</p>
+                            <p>Pot won: {Math.floor((game?.pot || 0) / winners.length)} chips each</p>
+                            <div className="flex gap-2 justify-center mt-4">
+                            <button 
+                                className="px-4 py-2 bg-blue-500 text-white rounded"
+                                onClick={() => {
+                                setWinners(null);
+                                if (socket) {
+                                    socket.emit("start_new_game", roomId);
+                                }
+                                }}
+                            >
+                                Play Again
+                            </button>
+                            <button 
+                                className="px-4 py-2 bg-gray-500 text-white rounded"
+                                onClick={() => setWinners(null)}
+                            >
+                                Close
+                            </button>
+                            </div>
+                        </div>
+                        )}
+
                     {socketId && socket && username && game.currentPlayer === username && !game.folded[socketId] && (
                         <div className="flex gap-2 mt-4">
                             {(game.bets[socketId] || 0) < game.currentBet ? (

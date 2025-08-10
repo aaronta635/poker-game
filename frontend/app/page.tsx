@@ -63,6 +63,7 @@ export default function HomePage() {
       socket.off("ready_status");
     };
   }, [socket]);
+
     
   return (
     <main className="p-4">
