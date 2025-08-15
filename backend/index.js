@@ -16,10 +16,6 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
-const pokerAPI = require('./poker-api');
-
-// Add this line with your other app.use statements
-app.use('/api/poker', pokerAPI);
 
 // Store room states (optional, can be replaced later with DB)
 const rooms = {};
