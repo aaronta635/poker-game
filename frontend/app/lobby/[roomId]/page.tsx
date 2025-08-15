@@ -13,7 +13,7 @@ type GameState = {
     currentPlayerIndex: number;
     bets: { [playerID: string]: number};
     folded: { [playerID: string]: boolean};
-    currentBet: number;
+    current_bet: number;
     buyIn: number;
 };
 
@@ -26,7 +26,7 @@ export default function LobbyPage() {
     const [username, setUsername] = useState<string | null>(null);
     const [players, setPlayers] = useState<{ id: string; name: string; ready?: boolean, chips: number}[]>([]);
     const [winners, setWinners] = useState<{id: string; name: string; bestScore: number}[] | null>(null);
-
+    const [countdown, setCountdown] = useState(0);
     // Emit join_lobby when entering the lobby
     useEffect(() => {
         if (socket && roomId) {
@@ -60,6 +60,8 @@ export default function LobbyPage() {
         if (!socket) return;
         const handleGameStarted = (gameState: GameState) => {
             setGame(gameState);
+            setWinners(null);
+            setCountdown(0);
         };
         socket.on("game_started", handleGameStarted);
         return () => {
@@ -104,6 +106,30 @@ export default function LobbyPage() {
             socket.off("game_winners")
         };
     }, [socket]);
+
+
+    useEffect(() => {
+        if (!socket) return;
+        
+        socket.on("game_winners", (winners) => {
+          // Show winners and start countdown
+          setCountdown(5);
+          const timer = setInterval(() => {
+            setCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(timer);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        });
+
+        return () => {
+            socket.off("game_winners");
+        };
+      }, [socket]);
+
 
     console.log("username:", username, "game.currentPlayer:", game?.currentPlayer);
     console.log("players: ", players)
@@ -154,61 +180,60 @@ export default function LobbyPage() {
                             padding: '20px', 
                             margin: '20px 0', 
                             borderRadius: '10px',
-                            textAlign: 'center'
+                            textAlign: 'center',
+                            color: 'black'
                         }}>
-                            <h2>🎉 Game Over! 🎉</h2>
-                            {winners.length === 1 ? (
-                            <h3>Winner: {winners[0].name}!</h3>
+                            {countdown > 0 ? (
+                            // Show winners DURING countdown (first 5 seconds)
+                            <>
+                                <h2>🎉 Game Over! 🎉</h2>
+                                {winners.length === 1 ? (
+                                <h3>Winner: {winners[0].name}!</h3>
+                                ) : (
+                                <h3>Tie between: {winners.map(w => w.name).join(', ')}!</h3>
+                                )}
+                                <p>Winning score: {winners[0].bestScore}</p>
+                                <p>Pot won: {Math.floor((game?.pot || 0) / winners.length)} chips each</p>
+                                <p>Next hand starting in {countdown} seconds...</p>
+                            </>
                             ) : (
-                            <h3>Tie between: {winners.map(w => w.name).join(', ')}!</h3>
-                            )}
-                            <p>Winning score: {winners[0].bestScore}</p>
-                            <p>Pot won: {Math.floor((game?.pot || 0) / winners.length)} chips each</p>
-                            <div className="flex gap-2 justify-center mt-4">
-                            <button 
-                                className="px-4 py-2 bg-blue-500 text-white rounded"
-                                onClick={() => {
-                                setWinners(null);
-                                if (socket) {
-                                    socket.emit("start_new_game", roomId);
-                                }
-                                }}
-                            >
-                                Play Again
-                            </button>
-                            <button 
-                                className="px-4 py-2 bg-gray-500 text-white rounded"
-                                onClick={() => setWinners(null)}
-                            >
-                                Close
-                            </button>
-                            </div>
-                        </div>
-                        )}
+                            // Show countdown message when countdown is 0 (shouldn't happen)
+                            <>
+                                <h2>Next Hand Starting In {countdown}</h2>
 
-                    {socketId && socket && username && game.currentPlayer === username && !game.folded[socketId] && (
-                        <div className="flex gap-2 mt-4">
-                            {(game.bets[socketId] || 0) < game.currentBet ? (
-                                <button
-                                    className="px-4 py-2 bg-green-500 text-white rounded"
-                                    onClick={() => socket.emit("player_action", roomId, "call")}
-                                >
-                                    Call {game.currentBet - game.bets[socketId] || 0}
-                                </button>
-                            ): (
-                                <button
-                                    className="px-4 py-2 bg-green-500 text-white rounded"
-                                    onClick={() => socket.emit("player_action", roomId, "check")}
-                                >
-                                    Check
-                                </button>
+                            </>
                             )}
+                        </div>
+                    )}
+
+                    {socketId && socket && username && game.currentPlayer === username && !game.folded[socketId] && !winners && countdown === 0 && (
+                        <div className="flex gap-2 mt-4">
+
+                            {(game.bets[socketId] || 0) < game.current_bet ? (
+
+                            <button
+                                className="px-4 py-2 bg-blue-500 text-white rounded"
+                                onClick={() => socket.emit("player_action", roomId, "call")}
+                            >
+                                Call {game.current_bet - (game.bets[socketId] || 0)}
+                            </button>
+                            ) : (
+                            // Player has matched current bet, can check
                             <button
                                 className="px-4 py-2 bg-green-500 text-white rounded"
-                                onClick={() => socket.emit("player_action", roomId, "bet")}
+                                onClick={() => socket.emit("player_action", roomId, "check")}
                             >
-                                Bet 10
+                                Check
                             </button>
+                            )}
+                            <button
+                            className="px-4 py-2 bg-orange-500 text-white rounded"
+                            onClick={() => socket.emit("player_action", roomId, "bet")}
+                            >
+                            Raise (+10)
+                            </button>
+
+
                             <button
                                 className="px-4 py-2 bg-red-500 text-white rounded"
                                 onClick={() => socket.emit("player_action", roomId, "fold")}

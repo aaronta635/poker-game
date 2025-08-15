@@ -10,7 +10,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     console.log("🔌 Attempting to connect to socket...");
-    const socketIo = io("http://localhost:3001");
+    const socketIo = io(process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001");
     setSocket(socketIo);
 
     socketIo.on("connect", () => {

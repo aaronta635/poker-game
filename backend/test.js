@@ -96,7 +96,7 @@ const testGame1 = {
     "player1": ["♠A", "♥A"], // Pair of Aces
     "player2": ["♠K", "♥K"]  // Pair of Kings
   },
-  community: ["♠Q", "♣J", "♦10", "♥9", "♣8"]
+  community: ["♠4", "♣5", "♦3", "♥2", "♣K"]
 };
 
 // Set up mock room data
@@ -147,7 +147,7 @@ const mockEvaluateHands = (game, roomId) => {
   return winners;
 };
 
-console.log("Scenario 1: Player 1 should win (better pair)");
+console.log("Scenario 1: Player 1 should win (straight)");
 const winners1 = mockEvaluateHands(testGame1, "test-room-1");
 console.log("Winners:", winners1);
 

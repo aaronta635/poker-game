@@ -8,9 +8,11 @@ const app = express();
 app.use(express.json()); // This parses JSON request bodies
 app.use(express.urlencoded({ extended: true }));
 const server = http.createServer(app);
+
+// Update CORS for production:
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000", // Your frontend URL
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"],
   },
 });
@@ -24,11 +26,13 @@ const rooms = {};
 const games = {};
 const lobbyStatus = {};
 
-function startGame(roomId) {
+function startGame(roomId, skipBlinds = false) {
 
   const suits = ['♣️', '♠️', '♥️', '♦️'];
   const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
   const BUY_IN = 500
+  const SMALL_BLIND = 10;
+  const BIG_BLIND = 20;
   
 
   let deck = [];
@@ -45,6 +49,16 @@ function startGame(roomId) {
 
   const community = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()]
 
+  const bets = {};
+  const folded = {};
+  const acted = {};
+
+  for (const player of rooms[roomId]) {
+    bets[player.id] = 0;
+    folded[player.id] = false;
+    acted[player.id] = false;
+  }
+
   games[roomId] = {
     deck, 
     hands,
@@ -55,13 +69,92 @@ function startGame(roomId) {
     currentPlayerIndex: 0,
     currentPlayer: rooms[roomId][0]?.name || null,
     buyIn: BUY_IN,
-    current_bet: 0,
-    bets: {},
-    folded: {},
+    current_bet: BIG_BLIND,
+    bets,
+    folded,
     chips: 500,
-    acted: {}
+    acted,
+    dealerIndex: games[roomId]?.dealerIndex || 0,
+    smallBlindIndex: 0,
+    bigblindIndex: 1
 
   };
+
+  if (!skipBlinds) {
+    postBlinds(roomId);
+    console.log("AFTER POSTING BLINDS - Bets object:", games[roomId].bets);
+  }
+
+}
+
+function postBlinds(roomId) {
+  const game = games[roomId];
+  const players = rooms[roomId];
+
+  if (!game || !players || players < 2) {
+    return
+  };
+
+  let SMALL_BLIND = 10;
+  let BIG_BLIND = 20;
+
+  let smallBlindIndex, bigBlindIndex;
+
+  if (players.length === 2) {
+    smallBlindIndex = game.dealerIndex;
+    bigBlindIndex = (game.dealerIndex + 1) % players.length;
+  } else {
+    smallBlindIndex = (game.dealerIndex + 1) % players.length;
+    bigBlindIndex = (game.dealerIndex + 2) % players.length;
+  };
+
+  const smallBlindPlayer = players[smallBlindIndex];
+  
+  console.log(`${smallBlindPlayer.name} chips before small blind: ${smallBlindPlayer.chips}`);
+
+  if (smallBlindPlayer && smallBlindPlayer.chips >= SMALL_BLIND) {
+    smallBlindPlayer.chips -= SMALL_BLIND;
+    game.bets[smallBlindPlayer.id] = SMALL_BLIND;
+    game.pot += SMALL_BLIND;
+    console.log(`${smallBlindPlayer.name} will be small blind.`)
+
+    console.log(`${smallBlindPlayer.name} chips after small blind: ${smallBlindPlayer.chips}`);
+  }
+
+  const bigBlindPlayer = players[bigBlindIndex];
+  console.log(`${bigBlindPlayer.name} chips before big blind: ${bigBlindPlayer.chips}`);
+
+  if (bigBlindPlayer && bigBlindPlayer.chips >= BIG_BLIND) {
+    bigBlindPlayer.chips -= BIG_BLIND;
+    game.bets[bigBlindPlayer.id] = BIG_BLIND;
+    game.pot += BIG_BLIND;
+    console.log(`${bigBlindPlayer.name} will be big blind.`)
+  };
+
+  console.log(`${bigBlindPlayer.name} chips after big blind: ${bigBlindPlayer.chips}`);
+
+  if (players.length === 2) {
+    game.currentPlayerIndex = smallBlindIndex;
+  } else {
+    game.currentPlayerIndex = (bigBlindIndex + 1) % players.length
+  }
+
+  game.currentPlayer = players[game.currentPlayerIndex].name
+  game.smallBlindIndex = smallBlindIndex;
+  game.bigBlindIndex = bigBlindIndex;
+
+  console.log(`Current player to act: ${game.currentPlayer}`);
+}
+
+function rotateDealerButton(roomId) {
+  const game = games[roomId];
+  const players = rooms[roomId];
+
+  if (!game || !players) return;
+
+  game.dealerIndex = (game.dealerIndex + 1) % players.length
+  console.log(`Dealer move to ${players[game.dealerIndex].name}`)
+
 }
 
 function advanceTurn(roomId) {
@@ -107,7 +200,7 @@ function allActiveCalled(roomId) {
 
   return players
     .filter(p => !game.folded[p.id])
-    .every(p => (game.bets[p.id]|| 0) === game.currentBet);
+    .every(p => (game.bets[p.id]|| 0) === game.current_bet);
 }
 
 function allActiveActed(roomId) {
@@ -194,6 +287,15 @@ function getHandScore(cards) {
   const values = cards.map(card => getCardValue(card)).sort((a, b) => a - b);
   const suits = cards.map(card => getCardSuit(card));
 
+  function getValueCounts(values) {
+    const counts = {};
+    for (let value of values) {
+      counts[value] = (counts[value] || 0) + 1;
+    }
+    return counts;
+  }
+  
+
   function isFlush(suits) {
     const first_suit = suits[0];
     for (let suit of suits) {
@@ -205,6 +307,9 @@ function getHandScore(cards) {
   };
 
   function isStraight(values) {
+    if (values.join(',') === '2,3,4,5,14') {
+      return true
+    }
     for (let i = 1; i < values.length; i++) {
       if (values[i] !== values[i-1] + 1) {
         return false
@@ -214,50 +319,59 @@ function getHandScore(cards) {
   }
 
   function isOnePair(values) {
-    const valuesCounts = {}
+    const valuesCounts = getValueCounts(values);
+    let pairValue = null;
     let pairs = 0;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i] in valuesCounts) {
-        valuesCounts[values[i]] += 1;
-      } else {
-        valuesCounts[values[i]] = 1;
-      };
-    };
+    
     for (let value in valuesCounts) {
       if (valuesCounts[value] === 2) {
         pairs += 1;
-      } 
+        pairValue = parseInt(value); // This is the pair value!
+      }
     }
-    return pairs === 1;  // One unique pair
+    
+    if (pairs === 1) {
+      return {
+        isOnePair: true,
+        pairValue: pairValue,
+        kickers: values.filter(v => v !== pairValue).sort((a,b) => b-a)
+      };
+    }
+    
+    return { isOnePair: false };
   }
 
   function isTwoPair(values) {
-    const valuesCounts = {}
-    let pairs = 0;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i] in valuesCounts) {
-        valuesCounts[values[i]] += 1;
-      } else {
-        valuesCounts[values[i]] = 1;
-      };
-    };
+    const valuesCounts = getValueCounts(values);
+    let pairs = [];
+    
     for (let value in valuesCounts) {
       if (valuesCounts[value] === 2) {
-        pairs += 1;
-      } 
+        pairs.push(parseInt(value));
+      }
     }
-    return pairs === 2;  // Two unique pair
+    
+    if (pairs.length === 2) {
+      // Sort pairs high to low
+      pairs.sort((a, b) => b - a);
+      
+      // Return both pairs for scoring
+      return {
+        isTwoPair: true,
+        highPair: pairs[0],
+        lowPair: pairs[1],
+        kicker: values.find(v => !pairs.includes(v)) // The odd card
+      };
+    }
+    
+    return { isTwoPair: false };
   }
+  
+  
 
   function isTOAK(values) {
-    const valuesCounts = {}
-    for ( let i = 0; i < values.length; i++) {
-      if (values[i] in valuesCounts) {
-        valuesCounts[values[i]] += 1;
-      } else {
-        valuesCounts[values[i]] = 1;
-      };
-    };
+    const valuesCounts = getValueCounts(values)
+    
     for ( let i = 0; i < values.length; i++) {
       if (valuesCounts[values[i]] === 3) {
         return true
@@ -267,14 +381,7 @@ function getHandScore(cards) {
   };
 
   function isFOAK(values) {
-    const valuesCounts = {}
-    for ( let i = 0; i < values.length; i++) {
-      if (values[i] in valuesCounts) {
-        valuesCounts[values[i]] += 1;
-      } else {
-        valuesCounts[values[i]] = 1;
-      };
-    };
+    const valuesCounts = getValueCounts(values)
     for (let i = 0; i < values.length; i++) {
       if (valuesCounts[values[i]] === 4) {
         return true
@@ -291,15 +398,7 @@ function getHandScore(cards) {
   };
 
   function isFullHouse(values) {
-    const valuesCounts = {}
-    for (let i = 0; i < values.length; i++) {
-      if (values[i] in valuesCounts) {
-        valuesCounts[values[i]] += 1;
-      } else {
-        valuesCounts[values[i]] = 1;
-      };
-    };
-
+    const valuesCounts = getValueCounts(values)
     if ((valuesCounts[values[0]] === 3) && (valuesCounts[values[values.length-1]] === 2)) {
       return true
     };
@@ -327,11 +426,17 @@ function getHandScore(cards) {
   if (isTOAK(values)) {
     return 3000 + values[values.length - 1]; // Three of a Kind
   }
-  if (isTwoPair(values)) {
-    return 2000 + values[values.length - 1]; // Two Pair
+  // In getHandScore:
+  const twoPairResult = isTwoPair(values);
+  if (twoPairResult.isTwoPair) {
+    // Encode: 2000 + (highPair * 100) + (lowPair * 10) + kicker
+    return 2000 + (twoPairResult.highPair * 100) + (twoPairResult.lowPair * 10) + twoPairResult.kicker;
   }
-  if (isOnePair(values)) {
-    return 1000 + values[values.length - 1]; // One Pair
+  const onePairResult = isOnePair(values);
+  if (onePairResult.isOnePair) {  
+    const pair = onePairResult.pairValue;
+    const kickers = values.filter(v => v !== pair).sort((a,b) => b-a);
+    return 1000 + (pair * 100) + (kickers[0] * 10) + kickers[1];
   }
   
   return values[values.length - 1]; // High Card
@@ -349,6 +454,7 @@ function nextPhase(roomId) {
   if (game.phase == 'pre-flop') {
     game.phase = 'flop';
     game.revealed = 3;
+
   } else if (game.phase == 'flop') {
     game.phase = 'turn';
     game.revealed = 4;
@@ -377,15 +483,42 @@ function nextPhase(roomId) {
       }
     });
 
+
     io.to(roomId).emit("game_winners", winners);
-    io.to(roomId).emit("room_update", rooms[roomId]); // Update chips
+    io.to(roomId).emit("room_update", rooms[roomId]);
+    
+    setTimeout(() => {
+      if (rooms[roomId] && games[roomId]) {
+        console.log("Auto-starting new game after 5 seconds...");
+        
+        // Rotate dealer
+        rotateDealerButton(roomId);
+        const newDealerIndex = games[roomId].dealerIndex;
+        
+        // Create new game
+        delete games[roomId];
+        startGame(roomId, true); // Skip initial blinds
+        
+        // Set rotated dealer and post blinds
+        games[roomId].dealerIndex = newDealerIndex;
+        postBlinds(roomId);
+        
+        io.to(roomId).emit("game_started", games[roomId]);
+      }
+    }, 5000); // 5 seconds
   };
+
+  if (['flop', 'turn', 'river'].includes(game.phase)) {
+    game.currentPlayerIndex = game.smallBlindIndex;
+    const players = rooms[roomId];
+    game.currentPlayer = players[game.currentPlayerIndex]?.name || null;
+  }
+  
     // Reset pot
   game.bets = {};
-  game.currentBet = 0;
+  game.current_bet = 0;
   game.acted = {}; // ADD THIS: Reset acted tracker
-  game.currentPlayerIndex = 0;
-  game.currentPlayer = rooms[roomId][0]?.name || null;
+
 
 }
 
@@ -454,7 +587,7 @@ io.on("connection", (socket) => {
     // Check if all players are in the lobby
     const allInLobby = rooms[roomId] && rooms[roomId].every(p => lobbyStatus[roomId].has(p.id));
     if (allInLobby) {
-      startGame(roomId);
+      startGame(roomId, false);
       io.to(roomId).emit("game_started", games[roomId]);
       // Optionally, clear the lobbyStatus for this room
       delete lobbyStatus[roomId];
@@ -463,6 +596,7 @@ io.on("connection", (socket) => {
 
 
   socket.on("player_action", (roomId, action) => {
+
     const game = games[roomId];
     const players = rooms[roomId];
 
@@ -478,7 +612,7 @@ io.on("connection", (socket) => {
     };
 
     if (action == "bet") {
-      const betAmount = (game.currentBet || 0) + 10;
+      const betAmount = (game.current_bet || 0) + 10;
       const toAdd = betAmount - (game.bets[player.id] || 0);
       if (player.chips < toAdd) {
         return
@@ -489,24 +623,48 @@ io.on("connection", (socket) => {
       game.pot += toAdd
  
       game.bets[player.id] = betAmount;
-      game.currentBet = betAmount;
+      game.current_bet = betAmount;
  
     } else if (action == "call") {
-      const callAmount = game.currentBet;
+      const callAmount = game.current_bet;
       const toAdd = callAmount - (game.bets[player.id] || 0);
+
       if (player.chips < toAdd) return;
-      console.log("Players: ", players)
-      console.log("Before bet:", player.chips)
+
       player.chips -= toAdd;
-      console.log("After bet:", player.chips)
+
       game.pot += toAdd;
       game.bets[player.id] = callAmount;
 
     } else if (action == "fold") {
       game.folded[player.id] = true
 
+      const activePlayers = players.filter(p => !game.folded[p.id])
+
+      if (activePlayers.length === 1) {
+        const winner = activePlayers[0];
+        winner.chips += game.pot;
+
+        io.to(roomId).emit("game_winners", [winner]);
+        io.to(roomId).emit("room_update", rooms[roomId]);
+
+        setTimeout(() => {
+          if (rooms[roomId] && games[roomId]) {
+            rotateDealerButton(roomId);
+            const newDealerIndex = games[roomId].dealerIndex;
+            delete games[roomId];
+            startGame(roomId, true);
+            games[roomId].dealerIndex = newDealerIndex;
+            postBlinds(roomId);
+            io.to(roomId).emit("game_started", games[roomId])
+          }
+        }, 5000);
+
+        return;
+      }
+
     } else if (action == "check") {
-      if ((game.bets[player.id] || 0) !== game.currentBet) {
+      if ((game.bets[player.id] || 0) !== game.current_bet) {
         return
       };
 
@@ -517,7 +675,7 @@ io.on("connection", (socket) => {
     console.log(`${player.name} acted. Players who acted:`, Object.keys(game.acted));
 
     // Decide next step based on whether a bet exists
-    if ((game.currentBet || 0) === 0) {
+    if ((game.current_bet || 0) === 0) {
       // No bet on table: advance only when all active players have acted (checked)
       if (allActiveActed(roomId)) {
         console.log("All players checked - advancing phase");
@@ -528,7 +686,7 @@ io.on("connection", (socket) => {
       }
     } else {
       // There is a bet: advance only when all active players have called
-      if (allActiveCalled(roomId)) {
+      if (allActiveCalled(roomId) && allActiveActed(roomId)) {
         console.log("All players called - advancing phase");
         nextPhase(roomId);
       } else {
@@ -544,16 +702,7 @@ io.on("connection", (socket) => {
     socket.emit("room_update", rooms[roomId]);
   });
 
-  socket.on("start_new_game", (roomId) => {
-    console.log("Starting new game for room:", roomId);
-    if (rooms[roomId] && games[roomId]) {
-      // Reset game state but keep player chips
-      delete games[roomId]; // Delete old game
-      startGame(roomId); // Create new game
-      console.log("New game created:", games[roomId]);
-      io.to(roomId).emit("game_started", games[roomId]);
-    }
-  });
+
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
@@ -566,8 +715,9 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3001, () => {
-  console.log("🚀 Server running on http://localhost:3001");
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
 module.exports = {
