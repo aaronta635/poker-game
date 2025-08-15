@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { useSocket } from "@/components/SocketContext";
+import { useSocket } from "../../../components/SocketContext";
 
 type GameState = {
     hands: { [playerId: string]: string[] };

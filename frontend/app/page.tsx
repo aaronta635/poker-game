@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSocket } from "@/components/SocketContext";
+import { useSocket } from "../components/SocketContext";
 import { useRouter } from "next/navigation";
 
 export default function HomePage() {
