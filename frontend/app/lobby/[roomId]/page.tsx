@@ -111,7 +111,7 @@ export default function LobbyPage() {
     useEffect(() => {
         if (!socket) return;
         
-        socket.on("game_winners", (winners) => {
+        socket.on("game_winners", () => {
           // Show winners and start countdown
           setCountdown(5);
           const timer = setInterval(() => {

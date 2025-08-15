@@ -5,7 +5,7 @@ import { useSocket } from "../components/SocketContext";
 import { useRouter } from "next/navigation";
 
 export default function HomePage() {
-  const { socket, socketId } = useSocket();
+  const { socket } = useSocket();
   const [roomId, setRoomId] = useState("");
   const [username, setUsername] = useState("");
   const [players, setPlayers] = useState<{ id: string; name: string; ready: boolean }[]>([]);
