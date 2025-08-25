@@ -322,23 +322,22 @@ export default function LobbyPage() {
               <div className="absolute inset-4 border-2 border-white/20 rounded-full"></div>
 
               {/* Community Cards */}
-              <div className="absolute top-20 left-1/2 transform -translate-x-1/2">
-                <div className="flex gap-2 justify-center items-center">
+              <div className="absolute top-16 left-1/2 transform -translate-x-1/2">
+                <div className="flex gap-2">
                   {communityCards.map((card, index) => (
-                    <div key={index} className="flex-shrink-0">
-                      <PokerCard
-                        card={card}
-                        isRevealed={card !== "🂠"}
-                        size="sm"
-                        className="transform hover:scale-105 transition-transform shadow-lg"
-                      />
-                    </div>
+                    <PokerCard
+                      key={index}
+                      card={card}
+                      isRevealed={card !== "🂠"}
+                      size="sm"
+                      className="transform hover:scale-105 transition-transform"
+                    />
                   ))}
                 </div>
               </div>
 
               {/* Pot Display */}
-              <div className="absolute top-48 left-1/2 transform -translate-x-1/2">
+              <div className="absolute top-40 left-1/2 transform -translate-x-1/2">
                 <div className="bg-white/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg">
                   <div className="text-center">
                     <div className="text-gray-600 text-sm font-semibold">
@@ -404,25 +403,19 @@ export default function LobbyPage() {
                       } ${position === "top" ? "" : "mt-2"}`}
                     >
                       {/* Player cards */}
-                      <div className="flex gap-0.5 mb-1">
-                        <div className="w-6 h-8 bg-blue-800 rounded border border-white/80 shadow-sm flex items-center justify-center">
-                          <span
-                            className={`text-xs text-white ${
-                              isFolded ? "opacity-50" : ""
-                            }`}
-                          >
-                            {isFolded ? "X" : "?"}
-                          </span>
-                        </div>
-                        <div className="w-6 h-8 bg-blue-800 rounded border border-white/80 shadow-sm flex items-center justify-center">
-                          <span
-                            className={`text-xs text-white ${
-                              isFolded ? "opacity-50" : ""
-                            }`}
-                          >
-                            {isFolded ? "X" : "?"}
-                          </span>
-                        </div>
+                      <div className="flex gap-1 mb-1">
+                        <PokerCard
+                          card={isFolded ? "folded" : "🂠"}
+                          isRevealed={false}
+                          size="sm"
+                          className={isFolded ? "opacity-50 grayscale" : ""}
+                        />
+                        <PokerCard
+                          card={isFolded ? "folded" : "🂠"}
+                          isRevealed={false}
+                          size="sm"
+                          className={isFolded ? "opacity-50 grayscale" : ""}
+                        />
                       </div>
 
                       {/* Player info */}
