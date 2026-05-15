@@ -2,20 +2,311 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Custom Font - Yourmate */
+@font-face {
+  font-family: 'Yourmate';
+  src: url('/fonts/Yourmate.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
 }
 
-@media (prefers-color-scheme: dark) {
+/* Poker Card Styles */
+:root {
+  --card-width: 112px;
+  --card-height: 168px;
+  --card-radius: 10px;
+  --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.card {
+  perspective: 1000px;
+  position: relative;
+  display: inline-block;
+}
+
+.card-inner {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+.card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.card-front {
+  background: #fff;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 8px;
+  position: relative;
+}
+
+.card-back {
+  background: #1a365d;
+  transform: rotateY(180deg);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.card-back img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--card-radius);
+  display: block;
+}
+
+.corner {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: grid;
+  justify-items: start;
+  align-content: end;
+  gap: 4px;
+  z-index: 10;
+}
+
+/* For cards 5-10, make suit sit next to the number horizontally */
+.card[data-rank="5"] .corner,
+.card[data-rank="6"] .corner,
+.card[data-rank="7"] .corner,
+.card[data-rank="8"] .corner,
+.card[data-rank="9"] .corner,
+.card[data-rank="10"] .corner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rank-img {
+  width: 16px;
+  max-width: none;
+}
+
+.rank-text {
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.rank-text.red { color: #d23636; }
+.rank-text.black { color: #16181a; }
+
+.suit-icon {
+  width: 20px;
+}
+
+.art {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+}
+
+.art img {
+  width: 70%;
+  height: auto;
+}
+
+.art.face img {
+  width: 96%;
+  transform: translateX(4px);
+}
+
+.art.ace {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.art.ace img {
+  max-width: 80%;
+  max-height: 80%;
+  object-fit: contain;
+}
+
+/* Specific ace positioning per suit */
+.card[data-suit="clubs"][data-rank="A"] .art img {
+  width: 90%;
+  transform: translateX(15px) translateY(-25px);
+}
+
+.card[data-suit="diamonds"][data-rank="A"] .art img {
+  width: 85%;
+  transform: translateX(13px) translateY(-45px);
+}
+
+.card[data-suit="hearts"][data-rank="A"] .art img {
+  width: 100%;
+  transform: translateX(14px) translateY(-15px);
+}
+
+.card[data-suit="spades"][data-rank="A"] .art img {
+  width: 95%;
+  transform: translateX(15px) translateY(-15px);
+}
+
+.art img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.pips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.pip {
+  width: 28%;
+  height: auto;
+}
+
+/* Specific pip adjustments for better positioning */
+.card[data-rank="2"] .pip { width: 110%; }
+.card[data-rank="3"] .pip { width: 100%; }
+.card[data-rank="4"] .pip { width: 75%; }
+.card[data-rank="5"] .pip { width: 80%; }
+.card[data-rank="6"] .pip { width: 90%; }
+.card[data-rank="7"] .pip { width: 80%; }
+.card[data-rank="8"] .pip { width: 80%; }
+.card[data-rank="9"] .pip { width: 80%; }
+.card[data-rank="10"] .pip { width: 100%; }
+
+
+
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+
+    --background: 0 0% 100%;
+
+    --foreground: 0 0% 3.9%;
+
+    --card: 0 0% 100%;
+
+    --card-foreground: 0 0% 3.9%;
+
+    --popover: 0 0% 100%;
+
+    --popover-foreground: 0 0% 3.9%;
+
+    --primary: 0 0% 9%;
+
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96.1%;
+
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96.1%;
+
+    --muted-foreground: 0 0% 45.1%;
+
+    --accent: 0 0% 96.1%;
+
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 84.2% 60.2%;
+
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 89.8%;
+
+    --input: 0 0% 89.8%;
+
+    --ring: 0 0% 3.9%;
+
+    --chart-1: 12 76% 61%;
+
+    --chart-2: 173 58% 39%;
+
+    --chart-3: 197 37% 24%;
+
+    --chart-4: 43 74% 66%;
+
+    --chart-5: 27 87% 67%;
+
+    --radius: 0.5rem
+  }
+  .dark {
+
+    --background: 0 0% 3.9%;
+
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 3.9%;
+
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 3.9%;
+
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 0 0% 98%;
+
+    --primary-foreground: 0 0% 9%;
+
+    --secondary: 0 0% 14.9%;
+
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 14.9%;
+
+    --muted-foreground: 0 0% 63.9%;
+
+    --accent: 0 0% 14.9%;
+
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 14.9%;
+
+    --input: 0 0% 14.9%;
+
+    --ring: 0 0% 83.1%;
+
+    --chart-1: 220 70% 50%;
+
+    --chart-2: 160 60% 45%;
+
+    --chart-3: 30 80% 55%;
+
+    --chart-4: 280 65% 60%;
+
+    --chart-5: 340 75% 55%
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
