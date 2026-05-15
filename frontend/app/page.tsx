@@ -17,6 +17,7 @@ export default function HomePage() {
   const [username, setUsername] = useState("");
   const [players, setPlayers] = useState<{ id: string; name: string; ready: boolean }[]>([]);
   const [isInRoom, setIsInRoom] = useState(false);
+  const [activeTab, setActiveTab] = useState("join");
   const [readyStatus, setReadyStatus] = useState({
     allReady: false,
     readyCount: 0,
@@ -34,6 +35,7 @@ export default function HomePage() {
       console.log("📡 Emitting join_room event...");
       socket.emit("join_room", roomId, username);
       setIsInRoom(true);
+      setActiveTab("status"); // Switch to Room Status tab after joining
       sessionStorage.setItem('poker-username', username);
     } else {
       console.log("❌ Cannot join room - missing:", { roomId, username, socket: !!socket });
@@ -128,7 +130,7 @@ export default function HomePage() {
 
           {/* Room Management Section */}
           <div className="max-w-3xl mx-auto mb-8">
-            <Tabs defaultValue="join" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-800 border border-slate-600 h-16">
                 <TabsTrigger
                   value="join"
